@@ -1,0 +1,220 @@
+services:
+  # Jellyfin - Media Server
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Chicago
+    volumes:
+      - /docker/jellyfin/config:/config
+      - nas_media_volume:/media
+    ports:
+      - 8096:8096
+      - 8920:8920
+      - 7359:7359/udp
+      - 1900:1900/udp
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 512M
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Chicago
+    volumes:
+      - /docker/sonarr/config:/config
+      - nas_media_volume:/media
+      - nas_downloads_volume:/downloads
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Chicago
+    volumes:
+      - /docker/radarr/config:/config
+      - nas_media_volume:/media
+      - nas_downloads_volume:/downloads
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /docker/sabnzbd/config:/config
+      - nas_downloads_volume:/downloads
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Chicago
+    volumes:
+      - /docker/prowlarr/config:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+  # Audiobookshelf - Audiobook Server
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    container_name: audiobookshelf
+    ports:
+      - 13378:80
+    volumes:
+      - /docker/audiobookshelf/config:/config
+      - /docker/audiobookshelf/meta:/metadata
+      - nas_media_volume:/media
+    restart: unless-stopped
+
+  # Kavita - Book Server
+  kavita:
+    image: lscr.io/linuxserver/kavita:latest
+    container_name: kavita
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Chicago
+    volumes:
+      - /docker/kavita/config:/config
+      - nas_media_volume:/media
+    ports:
+      - 5000:5000
+    restart: unless-stopped
+
+  # Mealie - Recipe Index
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:latest
+    container_name: mealie
+    ports:
+      - 9925:9000
+    volumes:
+      - /docker/mealie/app/data/:/app/data/
+    environment:
+      - ALLOW_SIGNUP=true
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Chicago
+      - MAX_WORKERS=2
+      - WEB_CONCURRENCY=4
+      - BASE_URL=https://mealie.reiffenberger.net
+    restart: unless-stopped
+
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    init: true
+    container_name: seerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=America/Chicago
+      - PORT=5055
+    ports:
+      - 5055:5055
+    volumes:
+      - /docker/seerr/config:/app/config
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
+    restart: unless-stopped
+
+  ersatztv:
+    image: ghcr.io/reclaimergold/ersatztv-ytembed:latest
+    container_name: ersatztv
+    restart: unless-stopped
+    ports:
+      - "8409:8409"
+    environment:
+      - TZ=America/Chicago
+    volumes:
+      - /docker/ersatztv/config:/config
+      - /docker/ersatztv/transcode:/transcode
+      - nas_media_volume:/media:ro
+      - /docker/ersatztv/remotestreams:/remotestreams:ro
+    depends_on:
+      ws4channels:
+        condition: service_healthy
+
+  metube:
+    image: ghcr.io/alexta69/metube
+    container_name: metube
+    restart: unless-stopped
+    ports:
+      - "10528:8081"
+    volumes:
+      - /docker/metube/downloads:/downloads
+
+  # WeatherStar 4000+
+  ws4kp:
+    image: ghcr.io/netbymatt/ws4kp:latest
+    container_name: ws4kp
+    restart: unless-stopped
+    ports:
+      - "9090:8080"
+    environment:
+      - WSQS_speed_select=0.50
+      - WSQS_kiosk=true
+      - WSQS_wide=true
+      - WSQS_travel=false
+      - WSQS_hourly=false
+
+  ws4channels:
+    image: ghcr.io/rice9797/ws4channels:latest
+    container_name: ws4channels
+    restart: unless-stopped
+    ports:
+      - "9798:9798"
+    depends_on:
+      - ws4kp
+    environment:
+      - WS4KP_HOST=ws4kp
+      - WS4KP_PORT=8080
+      - VIEW_MODE=wide
+      - FRAME_RATE=10
+      - PERMALINK_URL=http://ws4kp:8080/?speed-select=0.50&kiosk=true&wide=true&latLonQuery=Sioux+Falls,+SD,+USA
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9798/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1096M
+
+volumes:
+  nas_media_volume:
+    external: true
+  nas_downloads_volume:
+    external: true
+  nas_youtube_volume:
+    external: true

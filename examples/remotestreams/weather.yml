@@ -1,0 +1,4 @@
+title: "Local Weather"
+url: "http://ws4channels:9798/stream/stream.m3u8"
+is_live: true
+duration: 00:30:00

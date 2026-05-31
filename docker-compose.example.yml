@@ -1,0 +1,56 @@
+services:
+  ersatztv:
+    image: ghcr.io/reclaimergold/ersatztv-ytembed:latest
+    container_name: ersatztv
+    restart: unless-stopped
+    ports:
+      - "8409:8409"
+    environment:
+      - TZ=America/Chicago
+    volumes:
+      - /docker/ersatztv/config:/config
+      - /docker/ersatztv/transcode:/transcode
+      - /docker/ersatztv/remotestreams:/remotestreams:ro
+      # - nas_media_volume:/media:ro
+    depends_on:
+      ws4channels:
+        condition: service_healthy
+
+  ws4kp:
+    image: ghcr.io/netbymatt/ws4kp:latest
+    container_name: ws4kp
+    restart: unless-stopped
+    ports:
+      - "9090:8080"
+    environment:
+      - WSQS_speed_select=0.50
+      - WSQS_kiosk=true
+      - WSQS_wide=true
+      - WSQS_travel=false
+      - WSQS_hourly=false
+
+  ws4channels:
+    image: ghcr.io/rice9797/ws4channels:latest
+    container_name: ws4channels
+    restart: unless-stopped
+    ports:
+      - "9798:9798"
+    depends_on:
+      - ws4kp
+    environment:
+      - WS4KP_HOST=ws4kp
+      - WS4KP_PORT=8080
+      - VIEW_MODE=wide
+      - FRAME_RATE=10
+      - PERMALINK_URL=http://ws4kp:8080/?speed-select=0.50&kiosk=true&wide=true&latLonQuery=Sioux+Falls,+SD,+USA
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9798/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1096M

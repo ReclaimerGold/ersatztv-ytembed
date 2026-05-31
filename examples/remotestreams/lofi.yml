@@ -1,0 +1,4 @@
+title: "Lofi Girl 24/7"
+script: "yt-dlp --remote-components ejs:github -f 'bv*+ba/b' https://www.youtube.com/watch?v=jfKfPfyJRdk --hls-use-mpegts -o -"
+is_live: true
+duration: 01:00:00
